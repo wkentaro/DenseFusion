@@ -47,7 +47,7 @@ num_points_mesh = 500
 iteration = 2
 bs = 1
 dataset_config_dir = 'datasets/ycb/dataset_config'
-ycb_toolbox_dir = 'YCB_Video_toolbox'
+ycb_toolbox_dir = '/home/wkentaro/data/datasets/pfnet/chainer-dense-fusion/YCB_Video_toolbox'
 result_wo_refine_dir = 'experiments/eval_result/ycb/Densefusion_wo_refine_result'
 result_refine_dir = 'experiments/eval_result/ycb/Densefusion_iterative_result'
 
@@ -143,15 +143,21 @@ for now in range(0, 2949):
     lst = posecnn_rois[:, 1:2].flatten()
     my_result_wo_refine = []
     my_result = []
+    my_bboxes = []
+    my_masks = []
+    my_labels = []
     
     for idx in range(len(lst)):
         itemid = lst[idx]
+        my_labels.append(itemid)
         try:
             rmin, rmax, cmin, cmax = get_bbox(posecnn_rois)
 
             mask_depth = ma.getmaskarray(ma.masked_not_equal(depth, 0))
             mask_label = ma.getmaskarray(ma.masked_equal(label, itemid))
             mask = mask_label * mask_depth
+            my_bboxes.append((rmin, cmin, rmax, cmax))
+            my_masks.append(mask)
 
             choose = mask[rmin:rmax, cmin:cmax].flatten().nonzero()[0]
             if len(choose) > num_points:
@@ -160,6 +166,7 @@ for now in range(0, 2949):
                 np.random.shuffle(c_mask)
                 choose = choose[c_mask.nonzero()]
             else:
+                print(num_points, len(choose))
                 choose = np.pad(choose, (0, num_points - len(choose)), 'wrap')
 
             depth_masked = depth[rmin:rmax, cmin:cmax].flatten()[choose][:, np.newaxis].astype(np.float32)
@@ -236,6 +243,9 @@ for now in range(0, 2949):
             my_result_wo_refine.append([0.0 for i in range(7)])
             my_result.append([0.0 for i in range(7)])
 
-    scio.savemat('{0}/{1}.mat'.format(result_wo_refine_dir, '%04d' % now), {'poses':my_result_wo_refine})
-    scio.savemat('{0}/{1}.mat'.format(result_refine_dir, '%04d' % now), {'poses':my_result})
+    my_bboxes = np.asarray(my_bboxes, dtype=float)
+    my_masks = np.asarray(my_masks, dtype=bool)
+    my_labels = np.asarray(my_labels, dtype=np.int32)
+    scio.savemat('{0}/{1}.mat'.format(result_wo_refine_dir, '%04d' % now), {'frame_id': testlist[now], 'masks': my_masks, 'bboxes': my_bboxes, 'labels': my_labels, 'poses':my_result_wo_refine})
+    scio.savemat('{0}/{1}.mat'.format(result_refine_dir, '%04d' % now), {'frame_id': testlist[now], 'masks': my_masks, 'bboxes': my_bboxes, 'labels': my_labels, 'poses':my_result})
     print("Finish No.{0} keyframe".format(now))
